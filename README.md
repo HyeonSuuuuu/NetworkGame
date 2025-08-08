@@ -6,8 +6,7 @@ TCP - 데이터가 순대로 도착하는것을 보장한다
 ISN, ACK 메커니즘을 사용한다.
 
 ISN - Initial Sequence Number, ACK - 확인응답
-
-![Screenshot_20250807-230111~2.png](attachment:5d175d25-7d02-45be-9aa8-249bbafd02b2:Screenshot_20250807-2301112.png)
+![Screenshot_20250807-230935~2](https://github.com/user-attachments/assets/746b710f-bb13-47e2-94d8-392f8d3e08ed)
 
 [멀티플레이어 게임 프로그래밍/산제이 마드하브 및 죠슈아 글레이저/128p]
 
