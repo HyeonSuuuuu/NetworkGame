@@ -6,8 +6,8 @@ TCP - 데이터가 순대로 도착하는것을 보장한다
 ISN, ACK 메커니즘을 사용한다.
 
 ISN - Initial Sequence Number, ACK - 확인응답
-![Screenshot_20250807-230935~2](https://github.com/user-attachments/assets/746b710f-bb13-47e2-94d8-392f8d3e08ed)
 
+![Screenshot_20250807-230111~2](https://github.com/user-attachments/assets/d7241889-f7a7-4d9e-9691-dbaef71f8624)
 [멀티플레이어 게임 프로그래밍/산제이 마드하브 및 죠슈아 글레이저/128p]
 
 **발신자 / 수신자 포트(16비트/16비트)** : 프로세스 구분을 위한 16비트 부호없는 정수로(0~65535) 0~1023까지는 시스템 포트, 1024~49151까진 사용자 포트로 IANA 기구 산하 ICANN 부서에선 포 번호 등록제를 운영하여 포트를 동록해 사용하게 권장한다. , 49152~65535까진 동적 포트로 IANA 관할 밖이다. 어느 프로세스가 쓰든 제약이 없어 비어있는 프로그램을 찾을 때까지 동적 포트에 바인딩을 시도하여 자동으로 잡을 수도 있다
@@ -25,8 +25,7 @@ ISN - Initial Sequence Number, ACK - 확인응답
 **체크섬 (16비트)** : 데이터가 변형되었는지 검사한다.
 
 호스트 A와 B 사이의 TCP 통신을 위해 3way handshaking 과정으로 서로의 시퀸스 번호를 주고받는다.
-![Screenshot_20250807-230111~2](https://github.com/user-attachments/assets/d7241889-f7a7-4d9e-9691-dbaef71f8624)
-
+![Screenshot_20250807-230935~2](https://github.com/user-attachments/assets/746b710f-bb13-47e2-94d8-392f8d3e08ed)
 [멀티플레이어 게임 프로그래밍/산제이 마드하브 및 죠슈아 글레이저/132p]
 
 3way handshaking 과정
