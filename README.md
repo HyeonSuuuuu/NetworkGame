@@ -25,8 +25,7 @@ ISN - Initial Sequence Number, ACK - 확인응답
 **체크섬 (16비트)** : 데이터가 변형되었는지 검사한다.
 
 호스트 A와 B 사이의 TCP 통신을 위해 3way handshaking 과정으로 서로의 시퀸스 번호를 주고받는다.
-
-![Screenshot_20250807-230935~2.png](attachment:c95aa274-79da-4fbf-8594-fa1e9f442a5d:Screenshot_20250807-2309352.png)
+![Screenshot_20250807-230111~2](https://github.com/user-attachments/assets/d7241889-f7a7-4d9e-9691-dbaef71f8624)
 
 [멀티플레이어 게임 프로그래밍/산제이 마드하브 및 죠슈아 글레이저/132p]
 
@@ -37,9 +36,7 @@ ISN - Initial Sequence Number, ACK - 확인응답
 3. 호스트 A는 시퀸스 번호 +1을 한 후 ACK에 호스트 B의 시퀸스 번호 + 1를 보내고 ACK를 셋하여 호스트 B에 보낸다.
 
 이 과정에 끝나면 호스트 A, B는 서로의 시퀸스 번호를 알게 되고 데이터를 주고받을 수 있다.
-
-![Screenshot_20250807-235417-display-0.png.png](attachment:3bdac960-a809-4c5e-8902-909db51a4b85:Screenshot_20250807-235417-display-0.png.png)
-
+<img width="1261" height="773" alt="Screenshot_20250807-235417-display-0 png" src="https://github.com/user-attachments/assets/6927a11b-ca14-4f28-b908-8b2768b85e47" />
 [멀티플레이어 게임 프로그래밍/산제이 마드하브 및 죠슈아 글레이저/136p]
 
 데이터 전송 과정
@@ -59,9 +56,7 @@ TCP는 흐름 제어
 빠른 송신 호스트가 느린 수신 호스트를 압도하지 못하게 제어하는 기법이다. (만약 이게 없다면 엄청난 체증이 유발되어 막대한 인터넷 자원이 낭비된다. - 수신측이 송신측 속도를 못따라가면 수신측 버퍼가 가득차게 되고 데이터는 버려진다.  송신측은 ACK를 받지 못해 수신측에 계속 재전송하게 되는데 수신측은 가득찬 버퍼를 처리하기 바쁘다. 결국 송신측이 보낸 데이터가 또다시 버려지고 엄청난 낭비가 발생한다.)
 
 이를 위해 수신 윈도 필드란게 있고 남은 버퍼량을 기재한다. 이를 보고 얼마 안남았다면 ACK를 기다렸다 보내게 된다.
-
-![Screenshot_20250808-100952-display-0.png.png](attachment:6d72ae54-7e52-42a2-acaa-fd82cfc75727:Screenshot_20250808-100952-display-0.png.png)
-
+<img width="1159" height="1332" alt="Screenshot_20250808-100952-display-0 png" src="https://github.com/user-attachments/assets/8f9ce54b-3a25-4c48-8840-6a60ed010244" />
 [멀티플레이어 게임 프로그래밍/산제이 마드하브 및 죠슈아 글레이저/143p]
 
 흐름 제어 방법
