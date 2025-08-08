@@ -93,6 +93,4 @@ Socket 백로그 Queue
     
     3-way handshake가 완료된 연결들이 저장되는 큐로 서버에서 accept() 시스템 콜을 호출할 때까지 이 큐에서 대기
 
-<img width="1365" height="763" alt="image" src="https://github.com/user-attachments/assets/7fcb315d-4a0f-460e-ad6d-173a3a1ec5e9" />
-[https://github.com/jacking75/NewbieGameServerProgrammerLearningMaterials/tree/main/docs/%EA%B2%8C%EC%9E%84_%EC%84%9C%EB%B2%84_%EA%B0%9C%EB%B0%9C%EC%9E%90_%EC%95%8C%EC%95%84%EC%95%BC%ED%95%A0_%EB%84%A4%ED%8A%B8%EC%9B%8C%ED%81%AC_%EC%9D%B4%EB%A1%A0]
-
+https://github.com/jacking75/NewbieGameServerProgrammerLearningMaterials/tree/main/docs/%EA%B2%8C%EC%9E%84_%EC%84%9C%EB%B2%84_%EA%B0%9C%EB%B0%9C%EC%9E%90_%EC%95%8C%EC%95%84%EC%95%BC%ED%95%A0_%EB%84%A4%ED%8A%B8%EC%9B%8C%ED%81%AC_%EC%9D%B4%EB%A1%A0#%ED%94%84%EB%A1%9C%ED%86%A0%EC%BD%9C-%EC%84%A0%ED%83%9D-%EA%B2%B0%EB%A1%A0
