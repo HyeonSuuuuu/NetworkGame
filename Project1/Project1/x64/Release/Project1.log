@@ -1,6 +1,4 @@
-﻿  main.cpp
-  코드를 생성하고 있습니다.
-  Previous IPDB and IOBJ mismatch, fall back to full compilation.
-  All 10 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
-  코드를 생성했습니다.
-  Project1.vcxproj -> D:\Code\TCP-\Project1\x64\Release\Project1.exe
+﻿  SocketAddress.cpp
+SocketAddress.obj : error LNK2001: 확인할 수 없는 외부 기호 __imp_freeaddrinfo
+SocketAddress.obj : error LNK2001: 확인할 수 없는 외부 기호 __imp_getaddrinfo
+D:\Code\TCP-\Project1\x64\Release\Project1.exe : fatal error LNK1120: 2개의 확인할 수 없는 외부 참조입니다.

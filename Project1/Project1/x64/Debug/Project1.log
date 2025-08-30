@@ -1,3 +1,5 @@
-﻿  main.cpp
-D:\Code\TCP-\Project1\Project1\main.cpp(6,7): error C2039: 'cout': 'std'의 멤버가 아닙니다.
-D:\Code\TCP-\Project1\Project1\main.cpp(6,7): error C2065: 'cout': 선언되지 않은 식별자입니다.
+﻿  stdafx.cpp
+  SocketAddress.cpp
+  main.cpp
+  코드를 생성하고 있습니다...
+  Project1.vcxproj -> D:\Code\TCP-\Project1\x64\Debug\Project1.exe
