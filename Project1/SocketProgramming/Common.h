@@ -11,6 +11,9 @@
 
 #pragma comment(lib, "ws2_32")
 
+void err_quit(const char* msg);
+void err_display(const char* msg);
+void err_display(int errCode);
 
 
 
