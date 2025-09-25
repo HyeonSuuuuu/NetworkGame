@@ -218,9 +218,29 @@ int Exercise03_2()
 	const char* ipv4test = "147.46.114.70";
 	printf("IPv4 주소(변환전) = %s\n", ipv4test);
 
+	unsigned long retval = inet_addr(ipv4test);
+	if (retval == INADDR_ANY || retval == INADDR_NONE) {
+		WSASetLastError(WSAEADDRNOTAVAIL);
+		err_display("inet_addr()");
+	}
+
 	struct in_addr ipv4num;
-	ipvinet_addr(ipv4test);
+	ipv4num.S_un.S_addr = retval;
+
 	printf("IPv4 주소(변환후) = %#x\n", ipv4num.s_addr);
+	
+	printf("IPv4 주소(변환후) 십진수로 = %d.%d.%d.%d\n", ipv4num.S_un.S_un_b.s_b1,
+		ipv4num.S_un.S_un_b.s_b2, ipv4num.S_un.S_un_b.s_b3, ipv4num.S_un.S_un_b.s_b4);
+	printf("IPv4 주소(변환후) 십진수로(v2) = %d.%d.%d.%d\n", HIBYTE(ipv4num.S_un.S_un_w.s_w1), 
+		LOBYTE(ipv4num.S_un.S_un_w.s_w1), HIBYTE(ipv4num.S_un.S_un_w.s_w2),
+		LOBYTE(ipv4num.S_un.S_un_w.s_w2));
+	printf("IPv4 주소(변환후) 십진수로(v3) = %d.%d.%d.%d\n", HIBYTE(ipv4num.S_un.S_addr),
+		LOBYTE(HIWORD(ipv4num.S_un.S_addr)), HIBYTE(LOWORD(ipv4num.S_un.S_addr)),
+		LOBYTE(ipv4num.S_un.S_addr));
+	printf("IPv4 주소(변환후) 십진수로(v4) = %d.%d.%d.%d\n", HIBYTE(HIWORD(ipv4num.S_un.S_addr)),
+		LOBYTE(HIWORD(ipv4num.S_un.S_addr)), HIBYTE(LOWORD(ipv4num.S_un.S_addr)),
+		LOBYTE(ipv4num.S_un.S_addr));
+
 
 	char ipv4str[16]; // INET_ADDRSTRLEN 길이가 22인데 16으로도 충분해 보이는데 22인 이유
 	inet_ntop(AF_INET, &ipv4num, ipv4str, sizeof(ipv4str));
@@ -230,6 +250,88 @@ int Exercise03_2()
 	return 0;
 }
 
+int Exercise03_3()
+{
+	WSADATA wsa;
+	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
+		return 1;
+
+	const char* ipv4test = "147.46.114.70";
+	printf("IPv4 주소(변환전) = %s\n", ipv4test);
+
+	struct in_addr ipv4num;
+	inet_pton(AF_INET, ipv4test, &ipv4num);
+	printf("IPv4 주소(변환후) = %#x\n", ipv4num.s_addr);
+	// inet_ntoa()로 반환된 문자열 = 소켓에 의해 할당된 메모리, 유효값 보장 - 동일 스레드 내에 소켓 함수 호출 전까지
+	char ipv4str[16];
+	char* a = inet_ntoa(ipv4num); 
+	// ipv4num 
+	printf("IPv4 주소 (다시 변환 후) = %s\n", a);
+	printf("\n");
+
+
+	WSACleanup();
+	return 0;
+}
+int Exercise03_4()
+{
+	WSADATA wsa;
+	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
+		return 1;
+
+	char ipv4test[] = "147.46.114.70";
+	printf("IPv4 주소(변환전) = %s\n", ipv4test);
+	sockaddr_in addr;
+	int addrlen = sizeof(addr);
+	
+	if (WSAStringToAddressA(ipv4test, AF_INET, NULL, (sockaddr*)&addr, &addrlen) == SOCKET_ERROR)
+	{
+		err_display("WSAStringToAddressA()");
+	}
+
+
+	printf("IPv4 주소(변환후) = %#x\n", addr.sin_addr.S_un.S_addr);
+	// inet_ntoa()로 반환된 문자열 = 소켓에 의해 할당된 메모리, 유효값 보장 - 동일 스레드 내에 소켓 함수 호출 전까지
+	char ipv4str[16];
+	char* a = inet_ntoa(addr.sin_addr);
+	// ipv4num 
+	printf("IPv4 주소 (다시 변환 후) = %s\n", a);
+	printf("\n");
+
+	WSACleanup();
+	return 0;
+}
+int Exercise03_5()
+{
+	WSADATA wsa;
+	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
+		return 1;
+
+	char ipv4test[] = "147.46.114.110";
+	printf("IPv4 주소(변환전) = %s\n", ipv4test);
+	sockaddr_in addr;
+	int addrlen = sizeof(addr);
+
+	if (WSAStringToAddressA(ipv4test, AF_INET, NULL, (sockaddr*)&addr, &addrlen) == SOCKET_ERROR)
+	{
+		err_display("WSAStringToAddressA()");
+	}
+
+
+	printf("IPv4 주소(변환후) = %#x\n", addr.sin_addr.S_un.S_addr);
+
+	char ipv4str[16];
+	DWORD ipv4str_len = sizeof(ipv4str);
+	if (WSAAddressToStringA((sockaddr*)&addr, addrlen, NULL, ipv4str, &ipv4str_len) == SOCKET_ERROR) {
+		err_display("WSAAddressToStringA()");
+	}
+	// ipv4num 
+	printf("IPv4 주소 (다시 변환 후) = %s\n", ipv4str);
+	printf("\n");
+
+	WSACleanup();
+	return 0;
+}
 int Example03_2()
 {
 	WSADATA wsa;

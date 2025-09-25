@@ -33,8 +33,11 @@ Exercise02_5, // 5
 Exercise02_6,
 Exercise03_1,
 Exercise03_2,
+Exercise03_3,
+Exercise03_4, // 10
+Exercise03_5,
 Example02,
-Example03_2, // 10
+Example03_2,
 Example04,
 NULL};
 
