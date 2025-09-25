@@ -1,8 +1,6 @@
 #include "Common.h"
 
-
-
-int Exercise01()
+int Exercise02_1()
 {
 	WSADATA wsa;
 	MAKEWORD(2, 2);
@@ -27,8 +25,96 @@ int Exercise01()
 	if (WSACleanup() != 0) err_quit("WSACleanup()");
 	return 0;
 }
+int Exercise02_2()
+{
+	WSADATA wsa;
+	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
+		return 1;
+	printf("[알림] 윈속 초기화 성공\n");
 
-int Exercise02()
+	SOCKET sock = socket(AF_INET, SOCK_DGRAM, 0);
+	if (sock == INVALID_SOCKET) err_quit("socket()");
+	printf("[알림] 소켓 생성 성공\n");
+
+	closesocket(sock);
+
+	WSACleanup();
+	return 0;
+}
+int Exercise02_3()
+{
+	WSADATA wsa;
+	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
+		return 1;
+	printf("[알림] 윈속 초기화 성공\n");
+
+	SOCKET sock = socket(AF_INET6, SOCK_STREAM, 0);
+	if (sock == INVALID_SOCKET) err_quit("socket()");
+	printf("[알림] 소켓 생성 성공\n");
+
+	closesocket(sock);
+
+	WSACleanup();
+	return 0;
+}
+int Exercise02_4()
+{
+	WSADATA wsa;
+	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
+		return 1;
+	printf("[알림] 윈속 초기화 성공\n");
+
+	SOCKET sock = socket(AF_INET6, SOCK_DGRAM, 0);
+	if (sock == INVALID_SOCKET) err_quit("socket()");
+	printf("[알림] 소켓 생성 성공\n");
+
+	closesocket(sock);
+	WSACleanup();
+	return 0;
+}
+
+int f02_5(int x)
+{
+	if (x >= 0) {
+		WSASetLastError(0);
+		return 0;
+	}
+		
+	if (x < 0) {
+		WSASetLastError(WSAEINVAL);
+		return SOCKET_ERROR;
+	}
+		
+}
+
+int Exercise02_5()
+{
+	int retval = f02_5(100);
+	if (retval == SOCKET_ERROR)
+		err_quit("f02_5()");
+	return 0;
+}
+
+int Exercise02_6()
+{
+	WSADATA wsa;
+	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
+		return 1;
+	}
+	printf("윈속 초기화 성공\n");
+	SOCKET sock = WSASocket(AF_INET, SOCK_STREAM, 0, NULL, 0, WSA_FLAG_OVERLAPPED);
+	if (sock == INVALID_SOCKET)
+		err_display("WSASocket()");
+	printf("소켓 생성 성공\n");
+	closesocket(sock);
+	WSACleanup();
+	return 0;
+}
+
+
+
+
+int Example02() // 예제
 {
 	WSADATA wsa;
 	int errCode = WSAStartup(MAKEWORD(2, 2), &wsa);
@@ -56,7 +142,95 @@ int Exercise02()
 	return 0;
 }
 
+
+bool IsLittileEndian03_01()
+{
+	// int i = 1을 선언하고 저장 방식을 확인
+	// 빅엔디안이면 0x00 00 00 01으로 저장
+	// 리틀엔디안이면 0x 01 00 00 00으로 저장
+	int i = 1;
+	//i를 1바이트 크기로 메모리에 접근
+	char* c = (char*)&i;
+
+	// 맨 앞 바이트가 1인지 체크, 1이면 리틀엔디안
+	if (*c == 1) {
+		return true;
+	}
+	else {
+		return false;
+	}
+}
+bool IsLittileEndian03_01_v2()
+{
+	// 꼭 어렵게 포인터로 접근해서 리틀엔디안인지 확인해야할까?
+	// 더 좋은방법은 없는지
+	
+	// 우선 리틀엔디안인지 체크하는건 2byte면 충분하다
+	short i = 1;
+	// 그리고 HIBYTE 매크로 함수로 맨앞 1바이트를 체크한다.
+	BYTE a = HIBYTE(i);
+	if (a == (BYTE)0x01) {
+		return true;
+	}
+	else {
+		return false;
+	}
+	// 그런데 안된다. 이유 ? 논리적인 값으로 변환해서?
+}
+bool IsLittileEndian03_01_v3()
+{
+	// 꼭 어렵게 포인터로 접근해서 리틀엔디안인지 확인해야할까?
+	// 더 좋은방법은 없는지
+
+	// 우선 리틀엔디안인지 체크하는건 2byte면 충분하다
+	short i = 1;
+	// 그리고 HIBYTE 매크로 함수로 맨앞 1바이트를 체크한다.
+	if (htons(i)) { // network 주소 체계 변환 시도
+		return true; // 성공했으면 리틀엔디안
+	}
+	else {
+		return false;
+	}
+	// 그런데 안된다. 이유 ? 논리적인 값으로 변환해서?
+}
+void checkEndian03_1()
+{
+	if (IsLittileEndian03_01_v3()) {
+		printf("시스템은 Littile-Endian 방식을 사용합니다.\n");
+	}
+	else {
+		printf("시스템은 Big-Endian 방식을 사용합니다.\n");
+	}
+}
+int Exercise03_1()
+{
+	printf("시스템의 바이트 정렬 방식을 확인합니다.\n");
+	checkEndian03_1();
+	return 0;
+}
+
 int Exercise03_2()
+{
+	WSADATA wsa;
+	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
+		return 1;
+
+	const char* ipv4test = "147.46.114.70";
+	printf("IPv4 주소(변환전) = %s\n", ipv4test);
+
+	struct in_addr ipv4num;
+	ipvinet_addr(ipv4test);
+	printf("IPv4 주소(변환후) = %#x\n", ipv4num.s_addr);
+
+	char ipv4str[16]; // INET_ADDRSTRLEN 길이가 22인데 16으로도 충분해 보이는데 22인 이유
+	inet_ntop(AF_INET, &ipv4num, ipv4str, sizeof(ipv4str));
+	printf("IPv4 주소 (다시 변환 후) = %s\n", ipv4str);
+	printf("\n");
+	WSACleanup();
+	return 0;
+}
+
+int Example03_2()
 {
 	WSADATA wsa;
 	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
@@ -108,7 +282,7 @@ bool GetDomainName(struct in_addr addr, char* name, int namelen)
 	strncpy(name, ptr->h_name, namelen);
 	return true;
 }
-int Exercise04()
+int Example04()
 {
 	WSADATA wsa;
 	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
@@ -129,6 +303,38 @@ int Exercise04()
 			printf("도메인 이름(다시 변환 후) = %s\n", name);
 		}
 	}
+	WSACleanup();
+	return 0;
+}
+
+int Example04_01()
+{
+	WSADATA wsa;
+	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
+		return 1;
+	SOCKET server_sock = socket(AF_INET, SOCK_STREAM, 0);
+	
+	if (server_sock == INVALID_SOCKET)
+		err_quit("socket()");
+
+	sockaddr_in addr;
+	addr.sin_family = AF_INET;
+	addr.sin_port = htons(8000);
+	addr.sin_addr.S_un.S_addr = INADDR_ANY;
+
+	bind(server_sock, (sockaddr*)&addr, sizeof(addr));
+	
+	listen(server_sock, SOMAXCONN);
+
+	while (true) {
+		SOCKET client_sock;
+		sockaddr_in client_addr;
+		int addrlen = sizeof(client_addr);
+		client_sock = accept(server_sock, (sockaddr*)&client_addr, &addrlen);
+
+
+	}
+
 	WSACleanup();
 	return 0;
 }

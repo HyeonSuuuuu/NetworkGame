@@ -24,8 +24,19 @@ int main()
 #else
 
 
-int (*pf[100])() = {Exercise01, Exercise02, Exercise03_2, Exercise04
-		, NULL};
+int (*pf[100])() = {
+Exercise02_1, // 1
+Exercise02_2,
+Exercise02_3,
+Exercise02_4,
+Exercise02_5, // 5
+Exercise02_6,
+Exercise03_1,
+Exercise03_2,
+Example02,
+Example03_2, // 10
+Example04,
+NULL};
 
 int main()
 {
