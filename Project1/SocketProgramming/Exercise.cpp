@@ -262,8 +262,7 @@ int Exercise03_3()
 	struct in_addr ipv4num;
 	inet_pton(AF_INET, ipv4test, &ipv4num);
 	printf("IPv4 주소(변환후) = %#x\n", ipv4num.s_addr);
-	// inet_ntoa()로 반환된 문자열 = 소켓에 의해 할당된 메모리, 유효값 보장 - 동일 스레드 내에 소켓 함수 호출 전까지
-	char ipv4str[16];
+	// inet_ntoa()로 반환된 문자열 = 라이브러리내의 정적데이터에 할당, 유효값 보장 - 어떤스레드든 동일 함수 호출 전까지
 	char* a = inet_ntoa(ipv4num); 
 	// ipv4num 
 	printf("IPv4 주소 (다시 변환 후) = %s\n", a);
@@ -292,7 +291,6 @@ int Exercise03_4()
 
 	printf("IPv4 주소(변환후) = %#x\n", addr.sin_addr.S_un.S_addr);
 	// inet_ntoa()로 반환된 문자열 = 소켓에 의해 할당된 메모리, 유효값 보장 - 동일 스레드 내에 소켓 함수 호출 전까지
-	char ipv4str[16];
 	char* a = inet_ntoa(addr.sin_addr);
 	// ipv4num 
 	printf("IPv4 주소 (다시 변환 후) = %s\n", a);
@@ -332,6 +330,42 @@ int Exercise03_5()
 	WSACleanup();
 	return 0;
 }
+
+int Exercise03_6()
+{
+	WSADATA wsa;
+	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
+		return 1;
+
+	const char* TEST = "www.example.com";
+	hostent* ptr = gethostbyname(TEST);
+	if (ptr == NULL) {
+		err_display("gethostbyname()");
+	}
+	if (ptr->h_addrtype != AF_INET)
+		return 0;
+	printf("공식 도메인 이름: %s\n", ptr->h_name);
+	for (int i = 0; ptr->h_aliases[i] != NULL; i++) {
+		printf("별칭 도메인 이름[%d]: %s\n", i + 1, ptr->h_aliases[i]);
+	}
+	for (int i = 0; ptr->h_addr_list[i] != NULL; i++) {
+		in_addr* ipv4addr = (in_addr*)ptr->h_addr_list[i];
+		char* ipv4str = inet_ntoa(*ipv4addr);
+		printf("IPv4 주소[%d] : %s",i+1, ipv4str);
+
+		struct hostent* ptr2 = gethostbyaddr((const char*)ipv4addr, sizeof(*ipv4addr), AF_INET);
+		if (ptr2 == NULL) {
+			printf(" ->도메인 검색: 실패\n");
+			continue;
+		}
+		printf(" ->도메인 체크: %s\n", ptr2->h_name);
+	}
+
+	
+	WSACleanup();
+	return 0;
+}
+
 int Example03_2()
 {
 	WSADATA wsa;
@@ -357,7 +391,7 @@ int Example03_2()
 }
 
 
-#define TESTNAME "www.google.com"
+#define TESTNAME "www.yahoo.com"
 
 bool GetIpAddr(const char* name, struct in_addr* addr)
 {
@@ -366,9 +400,20 @@ bool GetIpAddr(const char* name, struct in_addr* addr)
 		err_display("gethostbyname()");
 		return false;
 	}
+
 	if (ptr->h_addrtype != AF_INET)
 		return false;
+
+	printf("공식 도메인 이름: %s\n", ptr->h_name);
+	for (int i = 0; ptr->h_aliases[i] != NULL; i++) {
+		printf("별칭 도메인 이름[%d] : %s\n", i + 1, ptr->h_aliases[i]);
+	}
 	memcpy(addr, ptr->h_addr, ptr->h_length);
+	
+	for (int i = 0; ptr->h_addr_list[i] != NULL; ++i) {
+		memcpy(addr, &ptr->h_addr[i], ptr->h_length);
+		printf("IP 주소[%d] : %d.%d.%d.%d\n", i + 1, addr->S_un.S_un_b.s_b1, addr->S_un.S_un_b.s_b2, addr->S_un.S_un_b.s_b3, addr->S_un.S_un_b.s_b4);
+	}
 	return true;
 }
 
@@ -384,7 +429,7 @@ bool GetDomainName(struct in_addr addr, char* name, int namelen)
 	strncpy(name, ptr->h_name, namelen);
 	return true;
 }
-int Example04()
+int Example03_3()
 {
 	WSADATA wsa;
 	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
@@ -409,17 +454,18 @@ int Example04()
 	return 0;
 }
 
-int Example04_01()
+int Example04_01_s()
 {
 	WSADATA wsa;
 	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
 		return 1;
 	SOCKET server_sock = socket(AF_INET, SOCK_STREAM, 0);
-	
 	if (server_sock == INVALID_SOCKET)
 		err_quit("socket()");
 
+
 	sockaddr_in addr;
+	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(8000);
 	addr.sin_addr.S_un.S_addr = INADDR_ANY;
@@ -427,16 +473,50 @@ int Example04_01()
 	bind(server_sock, (sockaddr*)&addr, sizeof(addr));
 	
 	listen(server_sock, SOMAXCONN);
-
-	while (true) {
-		SOCKET client_sock;
-		sockaddr_in client_addr;
-		int addrlen = sizeof(client_addr);
-		client_sock = accept(server_sock, (sockaddr*)&client_addr, &addrlen);
-
-
+	SOCKET client_sock;
+	sockaddr_in client_addr;
+	int addrlen = sizeof(client_addr);
+	printf("연결 대기중..\n");
+	client_sock = accept(server_sock, (sockaddr*)&client_addr, &addrlen);
+	
+	printf("클라이언트 [%s] 접속", inet_ntoa(client_addr.sin_addr));
+	char buf[1024];
+	while (recv(client_sock, buf, sizeof(buf), NULL) > 0) {
+		printf("%s", buf);
+		send(client_sock, buf, sizeof(buf), NULL);
 	}
+	closesocket(client_sock);
+	closesocket(server_sock);
+	WSACleanup();
+	return 0;
+}
 
+int Example04_01_c()
+{
+	WSADATA wsa;
+	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
+		return 1;
+	SOCKET client_sock = socket(AF_INET, SOCK_STREAM, 0);
+	if (client_sock == INVALID_SOCKET)
+		err_quit("socket()");
+
+	sockaddr_in addr;
+	memset(&addr, 0, sizeof(addr));
+	addr.sin_family = AF_INET;
+	addr.sin_port = htons(8000);
+	addr.sin_addr.S_un.S_addr = 0x7F'00'00'01;
+	printf("연결 시도..\n");
+	connect(client_sock, (sockaddr*)&addr, sizeof(addr));
+
+	printf("서버 접속 성공\n");
+	char buf[1024];
+	while (scanf("%s", buf) == 1) {
+		send(client_sock, buf, sizeof(buf), NULL);
+
+		recv(client_sock, buf, sizeof(buf), NULL);
+		printf("recv: %s\n", buf);
+	}
+	closesocket(client_sock);
 	WSACleanup();
 	return 0;
 }
