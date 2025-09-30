@@ -19,3 +19,5 @@ int main(int argc, char* argv[])
 	WSACleanup();
 	return 0;
 }
+
+// HIBYTE, LOBYTE 매크로는 각각 WORD 타입의 상수에서 상위 바이트와 하위 바이트를 추출하는 데 사용된다.
