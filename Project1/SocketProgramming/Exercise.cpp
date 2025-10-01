@@ -291,7 +291,7 @@ int Exercise03_4()
 
 	printf("IPv4 주소(변환후) = %#x\n", addr.sin_addr.S_un.S_addr);
 	// inet_ntoa()로 반환된 문자열 = 소켓에 의해 할당된 메모리, 유효값 보장 - 동일 스레드 내에 소켓 함수 호출 전까지
-	char* a = inet_ntoa(addr.sin_addr);
+	char* a = inet_ntoa(addr.sin_addr); // 네트워크바이트 정렬된 주소를 문자열로 변환해준다.
 	// ipv4num 
 	printf("IPv4 주소 (다시 변환 후) = %s\n", a);
 	printf("\n");
@@ -305,7 +305,7 @@ int Exercise03_5()
 	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
 		return 1;
 
-	char ipv4test[] = "147.46.114.110";
+	char ipv4test[] = "147.46.114.110:8080";
 	printf("IPv4 주소(변환전) = %s\n", ipv4test);
 	sockaddr_in addr;
 	int addrlen = sizeof(addr);
@@ -314,11 +314,10 @@ int Exercise03_5()
 	{
 		err_display("WSAStringToAddressA()");
 	}
-
-
-	printf("IPv4 주소(변환후) = %#x\n", addr.sin_addr.S_un.S_addr);
-
-	char ipv4str[16];
+	// WSAStringToAddress를 쓰면 주소가 네트워크 바이트로 변환되어 in_addr에 자동으로 넣어준다. 근데 가독성은 안좋아 보인다.
+	printf("IPv4 주소(변환후) = %s port: %d\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+	
+	char ipv4str[100];
 	DWORD ipv4str_len = sizeof(ipv4str);
 	if (WSAAddressToStringA((sockaddr*)&addr, addrlen, NULL, ipv4str, &ipv4str_len) == SOCKET_ERROR) {
 		err_display("WSAAddressToStringA()");
@@ -331,13 +330,13 @@ int Exercise03_5()
 	return 0;
 }
 
-int Exercise03_6()
+int Exercise03_6(char** argv)
 {
 	WSADATA wsa;
 	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
 		return 1;
 
-	const char* TEST = "www.example.com";
+	const char* TEST = argv[1];
 	hostent* ptr = gethostbyname(TEST);
 	if (ptr == NULL) {
 		err_display("gethostbyname()");
@@ -351,17 +350,146 @@ int Exercise03_6()
 	for (int i = 0; ptr->h_addr_list[i] != NULL; i++) {
 		in_addr* ipv4addr = (in_addr*)ptr->h_addr_list[i];
 		char* ipv4str = inet_ntoa(*ipv4addr);
-		printf("IPv4 주소[%d] : %s",i+1, ipv4str);
-
-		struct hostent* ptr2 = gethostbyaddr((const char*)ipv4addr, sizeof(*ipv4addr), AF_INET);
-		if (ptr2 == NULL) {
-			printf(" ->도메인 검색: 실패\n");
-			continue;
-		}
-		printf(" ->도메인 체크: %s\n", ptr2->h_name);
+		printf("IPv4 주소[%d] : %s\n",i+1, ipv4str);
 	}
 
+	WSACleanup();
+	return 0;
+}
+int Exercise03_7(char** argv)
+{
+	WSADATA wsa;
+	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
+		return 1;
+
+	char* ipv4Str = argv[1];
+	sockaddr_in sock;
+	int ipv4len = sizeof(sock);
+	if (WSAStringToAddressA((LPSTR)ipv4Str, AF_INET, NULL, (sockaddr*)&sock, &ipv4len) == SOCKET_ERROR) {
+		err_display("WSAStringToAddressA()");
+	}
+	hostent* ptr = gethostbyaddr((const char*)&sock.sin_addr, ipv4len, AF_INET);
+	if (ptr == NULL) {
+		err_display("gethostbyaddr()");
+	}
+	if (ptr->h_addrtype != AF_INET)
+		return 0;
+	printf("공식 도메인 이름: %s\n", ptr->h_name);
+	for (int i = 0; ptr->h_aliases[i] != NULL; i++) {
+		printf("별칭 도메인 이름[%d]: %s\n", i + 1, ptr->h_aliases[i]);
+	}
+	for (int i = 0; ptr->h_addr_list[i] != NULL; i++) {
+		in_addr* ipv4addr = (in_addr*)ptr->h_addr_list[i];
+		char* ipv4str = inet_ntoa(*ipv4addr);
+		printf("IPv4 주소[%d] : %s", i + 1, ipv4str);
+	}
+
+	WSACleanup();
+	return 0;
+}
+
+namespace Exercise03
+{
+
+	bool GetIpInfo(const char* name, addrinfo** result) // 메모리 해제 책임이 호출자(사용자)에게 있음. 좋은 구조는 아니다.
+	{
+		addrinfo hints;
+		memset(&hints, 0, sizeof(hints));
+		hints.ai_family = AF_UNSPEC;
+		hints.ai_flags = AI_CANONNAME;
+		// gethostbyname = 프로토콜 종속적
+		// getaddrinfo = 프로토콜 독립적  독립적이란건 ipv4, ipv6 알아서 변환해준다는 뜻이다
+		// hints = NULL은 AF_UNSPEC, 다른 멤버 모두 0 (IPv4, IPv6만 처리하고 나머지는 상관안함)
+		int errCode = getaddrinfo(name, NULL, &hints, result);
+		if (errCode != 0) {
+			err_display(errCode);
+			return false;
+		}
+		return true;
+	}
+
+	bool GetDomainInfo(char* ipStr)
+	{
+		sockaddr_in saGNI;
+		saGNI.sin_family = AF_INET;
+		saGNI.sin_addr.s_addr = inet_addr(ipStr);
+
+		char hostname[NI_MAXHOST];
+		char servInfo[NI_MAXSERV];
+
+		if (saGNI.sin_addr.s_addr == INADDR_NONE || saGNI.sin_addr.s_addr == INADDR_ANY) {
+			printf("inet_addr returned INADDR_NONE or INADDR_ANY\n");
+			WSACleanup();
+			return 1;
+		}
+
+		int errCode = getnameinfo((sockaddr*)&saGNI, sizeof(sockaddr), hostname, NI_MAXHOST, servInfo, NI_MAXSERV, NI_NUMERICSERV);
+		if (errCode != 0) {
+			err_display(errCode);
+			return false;
+		}
+
+		printf("호스트 이름 = %s\n", hostname);
+
+		return true;
+	}
+}
+
+int Exercise03_8(char** argv)
+{
+	WSADATA wsa;
+	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
+		return 1;
+	char* domain_name = argv[1];
+	printf("입력받은 도메인 : %s\n", domain_name);
 	
+	addrinfo* result;
+	if (Exercise03::GetIpInfo(domain_name, &result)) {
+		for (addrinfo* ptr = result; ptr != NULL; ptr = ptr->ai_next) {
+			if (ptr->ai_canonname != NULL)
+				printf("공식 도메인 이름 : %s\n", ptr->ai_canonname);
+			switch (ptr->ai_family) {
+			case AF_UNSPEC: {
+				printf("Unspecified\n");
+				break;
+			}
+			case AF_INET: {
+				sockaddr_in* ipv4 = (sockaddr_in*)ptr->ai_addr;
+				printf("주소(IPv4): %s\n", inet_ntoa(ipv4->sin_addr));
+				break;
+			}
+			case AF_INET6:
+			{
+				sockaddr* in6 = (sockaddr*)ptr->ai_addr;
+				char buffer[46];
+				DWORD buffer_len = 46;
+				if (WSAAddressToStringA(in6, (DWORD)ptr->ai_addrlen, NULL, buffer, &buffer_len) != 0) {
+					err_display("WSAAddressToStringA()");
+				}
+
+				printf("주소(IPv6): %s\n", buffer);
+				break;
+			}
+			}
+		}
+		freeaddrinfo(result);
+	}
+	
+	WSACleanup();
+	return 0;
+}
+
+int Exercise03_9(char** argv)
+{
+	WSADATA wsa;
+	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
+		return 1;
+	char* ip_name = argv[1];
+	printf("입력받은 IP : %s\n", ip_name);
+	
+	Exercise03::GetDomainInfo(ip_name);
+
+
 	WSACleanup();
 	return 0;
 }
@@ -391,44 +519,48 @@ int Example03_2()
 }
 
 
+namespace Example03
+{
 #define TESTNAME "www.yahoo.com"
 
-bool GetIpAddr(const char* name, struct in_addr* addr)
-{
-	struct hostent* ptr = gethostbyname(name);
-	if (ptr == NULL) {
-		err_display("gethostbyname()");
-		return false;
+	bool GetIpAddr(const char* name, struct in_addr* addr)
+	{
+		struct hostent* ptr = gethostbyname(name);
+		if (ptr == NULL) {
+			err_display("gethostbyname()");
+			return false;
+		}
+
+		if (ptr->h_addrtype != AF_INET)
+			return false;
+
+		printf("공식 도메인 이름: %s\n", ptr->h_name);
+		for (int i = 0; ptr->h_aliases[i] != NULL; i++) {
+			printf("별칭 도메인 이름[%d] : %s\n", i + 1, ptr->h_aliases[i]);
+		}
+		memcpy(addr, ptr->h_addr, ptr->h_length);
+
+		for (int i = 0; ptr->h_addr_list[i] != NULL; ++i) {
+			memcpy(addr, &ptr->h_addr[i], ptr->h_length);
+			printf("IP 주소[%d] : %d.%d.%d.%d\n", i + 1, addr->S_un.S_un_b.s_b1, addr->S_un.S_un_b.s_b2, addr->S_un.S_un_b.s_b3, addr->S_un.S_un_b.s_b4);
+		}
+		return true;
 	}
 
-	if (ptr->h_addrtype != AF_INET)
-		return false;
-
-	printf("공식 도메인 이름: %s\n", ptr->h_name);
-	for (int i = 0; ptr->h_aliases[i] != NULL; i++) {
-		printf("별칭 도메인 이름[%d] : %s\n", i + 1, ptr->h_aliases[i]);
+	bool GetDomainName(struct in_addr addr, char* name, int namelen)
+	{
+		struct hostent* ptr = gethostbyaddr((const char*)&addr, sizeof(addr), AF_INET);
+		if (ptr == NULL) {
+			err_display("gethostbyaddr()");
+			return false;
+		}
+		if (ptr->h_addrtype != AF_INET)
+			return false;
+		strncpy(name, ptr->h_name, namelen);
+		return true;
 	}
-	memcpy(addr, ptr->h_addr, ptr->h_length);
-	
-	for (int i = 0; ptr->h_addr_list[i] != NULL; ++i) {
-		memcpy(addr, &ptr->h_addr[i], ptr->h_length);
-		printf("IP 주소[%d] : %d.%d.%d.%d\n", i + 1, addr->S_un.S_un_b.s_b1, addr->S_un.S_un_b.s_b2, addr->S_un.S_un_b.s_b3, addr->S_un.S_un_b.s_b4);
-	}
-	return true;
 }
 
-bool GetDomainName(struct in_addr addr, char* name, int namelen)
-{
-	struct hostent* ptr = gethostbyaddr((const char*)&addr, sizeof(addr), AF_INET);
-	if (ptr == NULL) {
-		err_display("gethostbyaddr()");
-		return false;
-	}
-	if (ptr->h_addrtype != AF_INET)
-		return false;
-	strncpy(name, ptr->h_name, namelen);
-	return true;
-}
 int Example03_3()
 {
 	WSADATA wsa;
@@ -439,14 +571,14 @@ int Example03_3()
 
 	// 도메인 이름->IP 주소
 	struct in_addr addr;
-	if (GetIpAddr(TESTNAME, &addr)) {
+	if (Example03::GetIpAddr(TESTNAME, &addr)) {
 		char str[16];
 		inet_ntop(AF_INET, &addr, str, sizeof(str));
 		printf("IP 주소(변환 후) = %s\n", str);
 
 		// IP 주소 -> 도메인 출력
 		char name[256];
-		if (GetDomainName(addr, name, sizeof(name))) {
+		if (Example03::GetDomainName(addr, name, sizeof(name))) {
 			printf("도메인 이름(다시 변환 후) = %s\n", name);
 		}
 	}
