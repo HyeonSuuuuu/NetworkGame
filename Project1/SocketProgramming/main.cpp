@@ -1,11 +1,12 @@
 #define _CRT_SECURE_NO_WARNINGS
+#define NOMINMAX
 #include <conio.h>
 #include "Exercise.cpp"
 
 // Exercise.cpp 빌드에서 제외 시킬것
 
 //#define TEST
-//#define MAIN
+// #define MAIN
 
 #ifdef TEST
 #include <chrono>
@@ -24,36 +25,9 @@ int main()
 
 #elif defined(MAIN)
 
-int main(int argc, char** argv)
-{
-	if (argc != 2) {
-		return 0;
-	}
 
-	WSADATA wsa;
-	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
-		return 1;
 
-	hostent* ptr = gethostbyname(argv[1]);
-	if (ptr == NULL) {
-		err_quit("gethostbyname()");
-	}
-	if (ptr->h_addrtype != AF_INET)
-		return 0;
-	printf("공식 도메인 이름: %s\n", ptr->h_name);
-	for (int i = 0; ptr->h_aliases[i] != NULL; i++) {
-		printf("별칭 도메인 이름[%d]: %s\n", i + 1, ptr->h_aliases[i]);
-	}
-	in_addr** addr_list = (in_addr**)ptr->h_addr_list;
-	for (int i = 0; ptr->h_addr_list[i] != NULL; i++) {
-		in_addr* ipv4addr = addr_list[i];
-		char* ipv4str = inet_ntoa(*ipv4addr);
-		printf("IPv4 주소[%d] : %s\n", i + 1, ipv4str);
-	}
 
-	WSACleanup();
-	return 0;
-}
 #else
 // 인수로 입력받는거 없이 실행하는 경우
 int (*pf[100])() = {
@@ -68,11 +42,23 @@ Exercise03_2,
 Exercise03_3,
 Exercise03_4, // 10
 Exercise03_5,
+Exercise05_05_s, // 12
+Exercise05_05_c, // 13
+Exercise05_s,
+Exercise05_c,
 Example02,
 Example03_2,
-Example03_3, //15
+Example03_3, 
 Example04_01_s,
 Example04_01_c,
+Example05_01_s,
+Example05_01_c,
+Example05_02_s,
+Example05_02_c,
+Example05_03_s,
+Example05_03_c,
+Example05_04_s,
+Example05_04_c,
 NULL};
 // 명령행 인수로 입력받아 실행하는 경우
 int (*pf_argv[100])(char**) = {
