@@ -494,6 +494,457 @@ int Exercise03_9(char** argv)
 	return 0;
 }
 
+
+namespace Exercise05 {
+// [size][id][data]
+// id = 1, [file_size, file_name][data]
+}
+
+
+int Exercise05_05_s()
+{
+	int ret_code, ret_val;
+
+	WSADATA wsa;
+	ret_code = WSAStartup(MAKEWORD(2, 2), &wsa);
+	if (ret_code != 0) {
+		err_display(ret_code);
+		return 0;
+	}
+
+	SOCKET listen_sock = socket(AF_INET, SOCK_STREAM, 0);
+	if (listen_sock == INVALID_SOCKET) err_quit("listen: socket()");
+
+	struct sockaddr_in server_addr;
+	memset(&server_addr, 0, sizeof(server_addr));
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(9000);
+	server_addr.sin_addr.s_addr = INADDR_ANY;
+	ret_code = bind(listen_sock, (struct sockaddr*)&server_addr, sizeof(server_addr));
+	if (ret_code == SOCKET_ERROR) err_quit("bind()");
+
+	ret_code = listen(listen_sock, SOMAXCONN);
+	if (ret_code == SOCKET_ERROR) err_quit("listen()");
+
+	SOCKET client_sock;
+	struct sockaddr_in client_addr;
+	int addrlen;
+	short len; // 고정 길이 데이터
+	char buf[65536]; // 가변 길이 데이터
+	short buf_offset = 0;
+	char file_name[256];
+	while (1) {
+		addrlen = sizeof(client_addr);
+		client_sock = accept(listen_sock, (struct sockaddr*)&client_addr, &addrlen);
+		if (client_sock == INVALID_SOCKET) {
+			err_display("accept()");
+			break;
+		}
+
+		char client_ip_str[INET_ADDRSTRLEN];
+		inet_ntop(AF_INET, &client_addr.sin_addr, client_ip_str, sizeof(client_ip_str));
+		printf("\n[TCP 서버] 클라이언트 접속: IP주소=%s, 포트 번호=%d\n", client_ip_str, ntohs(client_addr.sin_port));
+
+		// 고정 데이터 받기
+		ret_val = recv(client_sock, (char*)&len, sizeof(len), MSG_WAITALL);
+		if (ret_val == SOCKET_ERROR) {
+			err_display("recv() 고정");
+			break;
+		}
+		else if (ret_val == 0)
+			break;
+
+		// 가변 데이터 받기
+		ret_val = recv(client_sock, buf, len, MSG_WAITALL);
+		if (ret_val == SOCKET_ERROR) {
+			err_display("recv() 가변");
+			break;
+		}
+		else if (ret_val == 0)
+			break;
+		// 출력
+		
+		long long file_size = *((long long*)buf);
+		buf_offset += sizeof(file_size);
+		char file_name_len = *(buf + buf_offset);
+		buf_offset += sizeof(file_name_len);
+		memcpy(file_name, buf + buf_offset, file_name_len);
+		
+		file_name[file_name_len] = '\0';
+
+		printf("[TCP/%s:%d] 파일 크기: %lld\n", client_ip_str, ntohs(client_addr.sin_port), file_size);
+		printf("파일 이름: %s", file_name);
+		
+		FILE* fp =fopen(file_name, "wb");
+		if (fp == NULL) {
+			printf("fopen(%s) failed\n", file_name);
+			return 0;
+		}
+
+		long long recv_size = 0;
+		while (file_size > recv_size) {
+			// 고정 데이터 받기
+			ret_val = recv(client_sock, (char*)&len, sizeof(len), MSG_WAITALL);
+			if (ret_val == SOCKET_ERROR) {
+				err_display("recv()");
+				break;
+			}
+			else if (ret_val == 0)
+				break;
+			recv_size += ret_val;
+			// 가변 데이터 받기
+			ret_val = recv(client_sock, buf, len, MSG_WAITALL);
+			if (ret_val == SOCKET_ERROR) {
+				err_display("recv()");
+				break;
+			}
+			else if (ret_val == 0)
+				break;
+			// 출력
+			fwrite(buf, sizeof(char), ret_val, fp);
+			printf("[TCP/%s:%d] 진행률 %lf\%\n", client_ip_str, ntohs(client_addr.sin_port), recv_size / file_size * 100);
+		}
+		fclose(fp);
+		closesocket(client_sock);
+		printf("[TCP 서버] 클라이언트 종료: IP 주소=%s, 포트 번호=%d\n", client_ip_str, ntohs(client_addr.sin_port));
+	}
+
+
+	closesocket(listen_sock);
+	WSACleanup();
+	return 0;
+}
+
+
+int Exercise05_05_c()
+{
+	int ret_code, ret_val;
+
+	WSADATA wsa;
+	ret_code = WSAStartup(MAKEWORD(2, 2), &wsa);
+	if (ret_code != 0) {
+		err_display(ret_code);
+		return 0;
+	}
+
+	SOCKET sock = socket(AF_INET, SOCK_STREAM, 0);
+	if (sock == INVALID_SOCKET) err_quit("socket()");
+
+	struct sockaddr_in server_addr;
+	memset(&server_addr, 0, sizeof(server_addr));
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(9000);
+	inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr);
+
+	char file_path[256];
+	printf("전송할 파일 경로를 입력하세요: ");
+	if (scanf("%s", file_path) != 1) {
+		printf("입력 오류");
+		return 0;
+	}
+	FILE* fp = fopen(file_path, "rb");
+	if (fp == NULL) {
+		printf("The file %s was not opened\n", file_path);
+		return 0;
+	}
+	ret_val = fseek(fp, 0, SEEK_END);
+	if (ret_val != 0) {
+		printf("fseek(SEEK_END) failed\n");
+		return 0;
+	}
+	long long file_size = ftell(fp);
+	fclose(fp);
+
+	// 파일 이름 추출
+	const char* backslash = strrchr(file_path, '\\');
+	const char* file_name = backslash + 1;
+	printf("파일 이름: %s\n 파일사이즈: %lld", file_name, file_size);
+
+	ret_code = connect(sock, (struct sockaddr*)&server_addr, sizeof(server_addr));
+	if (ret_code == SOCKET_ERROR) err_quit("connect()");
+
+	char buf[65536];
+	short buf_offset = 0;
+	char len = strlen(file_name);
+	memset(buf, '#', sizeof(buf));
+	strncpy(buf, file_name, len);
+
+	// 파일 크기
+	memcpy(buf, &file_size, sizeof(file_size));
+	buf_offset += sizeof(file_size);
+	// 파일 이름 (가변)
+	memcpy(buf + buf_offset, &len, sizeof(len));
+	buf_offset += sizeof(len);
+	memcpy(buf + buf_offset, file_name, len);
+	buf_offset += len;
+	// 파일 데이터 (가변)
+
+	// 고정 데이터 보내기
+	ret_val = send(sock, (char*)&buf_offset, sizeof(buf_offset), 0);
+	if (ret_val == SOCKET_ERROR) {
+		err_display("send()");
+		return 0;
+	}
+	// 가변 데이터 보내기
+	ret_val = send(sock, buf, buf_offset, 0);
+	if (ret_val == SOCKET_ERROR) {
+		err_display("send()");
+		return 0;
+	}
+
+	long long send_size = 0;
+	fp = fopen(file_path, "rb");
+	if (fp == NULL) {
+		printf("fopen() failed\n");
+		return 0;
+	}
+
+	fseek(fp, 0, SEEK_END);
+	ftell(fp);
+	fseek(fp, 0, SEEK_SET);
+	while (file_size > send_size) {
+		buf_offset = fread(buf, sizeof(char), 65536, fp);
+		if (buf_offset <= 0) {
+			printf("파일 읽기 오류[%d]\n", buf_offset);
+			continue;
+		}
+		send_size += buf_offset;
+
+		// 고정 데이터 보내기
+		ret_val = send(sock, (char*)&buf_offset, sizeof(buf_offset), 0);
+		if (ret_val == SOCKET_ERROR) {
+			err_display("send()");
+			return 0;
+		}
+		// 가변 데이터 보내기
+		ret_val = send(sock, buf, buf_offset, 0);
+		if (ret_val == SOCKET_ERROR) {
+			err_display("send()");
+			return 0;
+		}
+	}
+
+
+
+	fclose(fp);
+	closesocket(sock);
+	WSACleanup();
+	return 0;
+}
+
+#define BUF_SIZE 65536
+
+int Exercise05_s()
+{
+	WSADATA wsa;
+	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
+		return 0;
+
+	SOCKET listen_sock = socket(AF_INET, SOCK_STREAM, 0);
+	if (listen_sock == INVALID_SOCKET)
+		err_quit("listen: socket()");
+
+	struct sockaddr_in server_addr;
+	memset(&server_addr, 0, sizeof(server_addr));
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(9000);
+	server_addr.sin_addr.s_addr = INADDR_ANY;
+	if (bind(listen_sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) == SOCKET_ERROR)
+		err_quit("bind()");
+	if (listen(listen_sock, SOMAXCONN) == SOCKET_ERROR)
+		err_quit("listen()");
+
+	char buffer[BUF_SIZE];
+	struct sockaddr_in client_addr;
+	int addrlen;
+
+	while (true) {
+		addrlen = sizeof(client_addr);
+
+		SOCKET client_sock = accept(listen_sock, (struct sockaddr*)&client_addr, &addrlen);
+		if (client_sock == INVALID_SOCKET)
+			err_quit("accept()");
+		// 파일 이름 받기
+		size_t recv_size;
+		int ret_val;
+		ret_val = recv(client_sock, (char*)&recv_size, sizeof(size_t), MSG_WAITALL);
+		if (ret_val == SOCKET_ERROR) {
+			err_display("recv()");
+			break;
+		}
+		if (ret_val == 0) break;
+
+		char file_name[128];
+		ret_val = recv(client_sock, file_name, recv_size, MSG_WAITALL);
+		if (ret_val == SOCKET_ERROR) {
+			err_display("recv()");
+			break;
+		}
+		if (ret_val == 0) break;
+		file_name[recv_size] = '\0';
+
+		// 파일 받기
+		ret_val = recv(client_sock, (char*)&recv_size, sizeof(size_t), MSG_WAITALL);
+		if (ret_val == SOCKET_ERROR) {
+			err_display("recv()");
+			break;
+		}
+		if (ret_val == 0) break;
+		
+		size_t cur_size = 0;
+		int recv_percent = 0;
+		FILE* fp = fopen(file_name, "wb");
+		while (cur_size + BUF_SIZE < recv_size) {
+			ret_val = recv(client_sock, buffer, BUF_SIZE, MSG_WAITALL);
+			if (ret_val == SOCKET_ERROR) {
+				err_display("recv()");
+				break;
+			}
+			if (ret_val == 0) break;
+
+			fwrite(buffer, sizeof(char), ret_val, fp);
+			cur_size += ret_val;
+			
+			if (recv_percent != (double)cur_size / recv_size * 100) {
+				recv_percent = (double)cur_size / recv_size * 100;
+				printf("[ %s ] 전송률:%d%%\r", file_name, recv_percent);
+			}
+		}
+		ret_val = recv(client_sock, buffer, recv_size-cur_size, MSG_WAITALL);
+		if (ret_val == SOCKET_ERROR) {
+			err_display("recv()");
+			break;
+		}
+		if (ret_val == 0) break;
+		fwrite(buffer, sizeof(char), ret_val, fp);
+		cur_size += ret_val;
+		recv_percent = (double)cur_size / recv_size * 100;
+		printf("[ %s ] 전송률:%d%%\r\n", file_name, recv_percent);
+
+
+		fclose(fp);
+		closesocket(client_sock);
+	}
+	
+	
+	closesocket(listen_sock);
+	WSACleanup();
+	return 0;
+}
+
+int Exercise05_c()
+{
+	int ret_val;
+
+	WSADATA wsa;
+	ret_val = WSAStartup(MAKEWORD(2, 2), &wsa);
+	if (ret_val != 0) {
+		err_display(ret_val);
+		return 0;
+	}
+
+	SOCKET sock = socket(AF_INET, SOCK_STREAM, 0);
+	if (sock == INVALID_SOCKET) err_quit("socket()");
+
+	struct sockaddr_in server_addr;
+	memset(&server_addr, 0, sizeof(server_addr));
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(9000);
+	inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr);
+
+	ret_val = connect(sock, (struct sockaddr*)&server_addr, sizeof(server_addr));
+	if (ret_val == SOCKET_ERROR) err_quit("connect()");
+	
+
+	char file_path[128];
+	printf("복사할 파일을 입력하시오. ");
+	if (scanf("%s", file_path) != 1)
+		return 0;
+	FILE* fp = fopen(file_path, "rb");
+
+	char buffer[BUF_SIZE];
+	size_t file_size;
+	//파일 이름 전송
+	const char* file_name = strrchr(file_path, '\\') + 1;
+	size_t file_len = strlen(file_name);
+	if (send(sock, (char*)&file_len, sizeof(size_t), 0) == SOCKET_ERROR)
+		err_quit("file_len: send()");
+	if (send(sock, file_name, file_len, 0) == SOCKET_ERROR)
+		err_quit("file_name: send()");
+
+	//파일 전송
+	_fseeki64(fp, 0, SEEK_END);
+	file_size = _ftelli64(fp);
+	_fseeki64(fp, 0, SEEK_SET);
+	if (send(sock, (char*)&file_size, sizeof(size_t), 0) == SOCKET_ERROR)
+		err_quit("file_size: send()");
+	size_t read_size;
+	while ((read_size = fread(buffer, sizeof(char), BUF_SIZE, fp)) > 0) {
+		if (send(sock, buffer, read_size, 0) == SOCKET_ERROR)
+			err_quit("file: send()");
+	}
+
+	fclose(fp);
+	closesocket(sock);
+	WSACleanup();
+	return 0;
+}
+
+/*
+int Exercise05_c()
+{
+
+
+	
+
+	char buf[512 + 1];
+	const char* test_data[] = {
+		"안녕하세요",
+		"반가워요",
+		"오늘따라 할 이야기가 많을것 같네요",
+		"저도 그렇네요",
+	};
+
+	for (int i = 0; i < 4; ++i) {
+		int len = (int)strlen(test_data[i]);
+		memset(buf, '#', sizeof(buf));
+		strncpy(buf, test_data[i], len);
+
+		// 고정 데이터 보내기
+		ret_val = send(sock, (char*)&len, sizeof(int), 0);
+		if (ret_val == SOCKET_ERROR) {
+			err_display("send()");
+			break;
+		}
+
+		ret_val = send(sock, buf, len, 0);
+		if (ret_val == SOCKET_ERROR) {
+			err_display("send()");
+			break;
+		}
+		printf("[TCP 클라이언트] %d 바이트를 보냈습니다.\n", ret_val);
+	}
+
+	closesocket(sock);
+	WSACleanup();
+	return 0;
+}
+
+
+*/
+
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+
+
+
+
 int Example03_2()
 {
 	WSADATA wsa;
@@ -517,6 +968,7 @@ int Example03_2()
 	WSACleanup();
 	return 0;
 }
+
 
 
 namespace Example03
@@ -709,6 +1161,524 @@ int Example04_01_c() // netstat -a -n -p tcp | findstr 8000 연결을 하면 서버소켓
 		printf("[받은 데이터] %s\n", buf);
 	}
 	closesocket(client_sock);
+	WSACleanup();
+	return 0;
+}
+
+
+namespace Example05 {
+	int _recv_ahead(SOCKET s, char* p)
+	{
+		__declspec(thread) static int nbytes = 0;
+		__declspec(thread) static char buf[1024];
+		__declspec(thread) static char* ptr;
+
+		if (nbytes == 0 || nbytes == SOCKET_ERROR) {
+			nbytes = recv(s, buf, sizeof(buf), 0);
+			if (nbytes == SOCKET_ERROR)
+				return SOCKET_ERROR;
+			else if (nbytes == 0)
+				return 0;
+			ptr = buf;
+		}
+
+		--nbytes;
+		*p = *ptr++;
+		return 1;
+	}
+
+	int recvline(SOCKET s, char* buf, int maxlen)
+	{
+		int n, nbytes;
+		char c, * ptr = buf;
+
+		for (n = 1; n < maxlen; ++n) {
+			nbytes = _recv_ahead(s, &c);
+			if (nbytes == 1) {
+				*ptr++ = c;
+				if (c == '\n')
+					break;
+			}
+			else if (nbytes == 0) {
+				*ptr = 0;
+				return n - 1;
+			}
+			else
+				return SOCKET_ERROR;
+		}
+
+		*ptr = 0;
+		return n;
+	}
+}
+
+int Example05_01_s()
+{
+	int ret_code, ret_val;
+
+	WSADATA wsa;
+	ret_code = WSAStartup(MAKEWORD(2, 2), &wsa);
+	if (ret_code != 0) {
+		err_display(ret_code);
+		return 0;
+	}
+
+	SOCKET listen_sock = socket(AF_INET, SOCK_STREAM, 0);
+	if (listen_sock == INVALID_SOCKET) err_quit("listen: socket()");
+	
+	struct sockaddr_in server_addr;
+	memset(&server_addr, 0, sizeof(server_addr));
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(9000);
+	server_addr.sin_addr.s_addr = INADDR_ANY;
+	ret_code = bind(listen_sock, (struct sockaddr*)&server_addr, sizeof(server_addr));
+	if (ret_code == SOCKET_ERROR) err_quit("bind()");
+	
+	ret_code = listen(listen_sock, SOMAXCONN);
+	if (ret_code == SOCKET_ERROR) err_quit("listen()");
+
+	SOCKET client_sock;
+	struct sockaddr_in client_addr;
+	int addrlen;
+	char buf[512 + 1];
+	
+	while (1) {
+		addrlen = sizeof(client_addr);
+		client_sock = accept(listen_sock, (struct sockaddr*)&client_addr, &addrlen);
+		if (client_sock == INVALID_SOCKET) {
+			err_display("accept()");
+			break;
+		}
+
+		char client_ip_str[INET_ADDRSTRLEN];
+		inet_ntop(AF_INET, &client_addr.sin_addr, client_ip_str, sizeof(client_ip_str));
+		printf("\n[TCP 서버] 클라이언트 접속: IP주소=%s, 포트 번호=%d\n", client_ip_str, ntohs(client_addr.sin_port));
+		
+		while (1) {
+			ret_val = recv(client_sock, buf, 512, MSG_WAITALL);
+			if (ret_val == SOCKET_ERROR) {
+				err_display("recv()");
+				break;
+			}
+			else if (ret_val == 0)
+				break;
+
+			buf[ret_val] = '\0';
+			printf("[TCP/%s:%d] %s\n", client_ip_str, ntohs(client_addr.sin_port), buf);
+		}
+
+		closesocket(client_sock);
+		printf("[TCP 서버] 클라이언트 종료: IP 주소=%s, 포트 번호=%d\n", client_ip_str, ntohs(client_addr.sin_port));
+	}
+	
+	closesocket(listen_sock);
+	WSACleanup();
+	return 0;
+}
+
+int Example05_01_c()
+{
+	int ret_code, ret_val;
+
+	WSADATA wsa;
+	ret_code = WSAStartup(MAKEWORD(2, 2), &wsa);
+	if (ret_code != 0) {
+		err_display(ret_code);
+		return 0;
+	}
+
+	SOCKET sock = socket(AF_INET, SOCK_STREAM, 0);
+	if (sock == INVALID_SOCKET) err_quit("socket()");
+
+	struct sockaddr_in server_addr;
+	memset(&server_addr, 0, sizeof(server_addr));
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(9000);
+	inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr);
+
+	ret_code = connect(sock, (struct sockaddr*)&server_addr, sizeof(server_addr));
+	if (ret_code == SOCKET_ERROR) err_quit("connect()");
+
+	char buf[512 + 1];
+	const char* test_data[] = {
+		"안녕하세요",
+		"반가워요",
+		"오늘따라 할 이야기가 많을것 같네요",
+		"저도 그렇네요",
+	};
+
+	for (int i = 0; i < 4; ++i) {
+		memset(buf, '#', sizeof(buf));
+		strncpy(buf, test_data[i], strlen(test_data[i]));
+
+		ret_val = send(sock, buf, 512, 0);
+		if (ret_val == SOCKET_ERROR) {
+			err_display("send()");
+			break;
+		}
+		printf("[TCP 클라이언트] %d 바이트를 보냈습니다.\n", ret_val);
+	}
+
+	closesocket(sock);
+	WSACleanup();
+	return 0;
+}
+
+int Example05_02_s()
+{
+	int ret_code, ret_val;
+
+	WSADATA wsa;
+	ret_code = WSAStartup(MAKEWORD(2, 2), &wsa);
+	if (ret_code != 0) {
+		err_display(ret_code);
+		return 0;
+	}
+
+	SOCKET listen_sock = socket(AF_INET, SOCK_STREAM, 0);
+	if (listen_sock == INVALID_SOCKET) err_quit("listen: socket()");
+
+	struct sockaddr_in server_addr;
+	memset(&server_addr, 0, sizeof(server_addr));
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(9000);
+	server_addr.sin_addr.s_addr = INADDR_ANY;
+	ret_code = bind(listen_sock, (struct sockaddr*)&server_addr, sizeof(server_addr));
+	if (ret_code == SOCKET_ERROR) err_quit("bind()");
+
+	ret_code = listen(listen_sock, SOMAXCONN);
+	if (ret_code == SOCKET_ERROR) err_quit("listen()");
+
+	SOCKET client_sock;
+	struct sockaddr_in client_addr;
+	int addrlen;
+	char buf[512 + 1];
+
+	while (1) {
+		addrlen = sizeof(client_addr);
+		client_sock = accept(listen_sock, (struct sockaddr*)&client_addr, &addrlen);
+		if (client_sock == INVALID_SOCKET) {
+			err_display("accept()");
+			break;
+		}
+
+		char client_ip_str[INET_ADDRSTRLEN];
+		inet_ntop(AF_INET, &client_addr.sin_addr, client_ip_str, sizeof(client_ip_str));
+		printf("\n[TCP 서버] 클라이언트 접속: IP주소=%s, 포트 번호=%d\n", client_ip_str, ntohs(client_addr.sin_port));
+
+		while (1) {
+			ret_val = Example05::recvline(client_sock, buf, 512+1);
+			if (ret_val == SOCKET_ERROR) {
+				err_display("recv()");
+				break;
+			}
+			else if (ret_val == 0)
+				break;
+			printf("[TCP/%s:%d] %s\n", client_ip_str, ntohs(client_addr.sin_port), buf);
+		}
+
+		closesocket(client_sock);
+		printf("[TCP 서버] 클라이언트 종료: IP 주소=%s, 포트 번호=%d\n", client_ip_str, ntohs(client_addr.sin_port));
+	}
+
+	closesocket(listen_sock);
+	WSACleanup();
+	return 0;
+}
+
+int Example05_02_c()
+{
+	int ret_code, ret_val;
+
+	WSADATA wsa;
+	ret_code = WSAStartup(MAKEWORD(2, 2), &wsa);
+	if (ret_code != 0) {
+		err_display(ret_code);
+		return 0;
+	}
+
+	SOCKET sock = socket(AF_INET, SOCK_STREAM, 0);
+	if (sock == INVALID_SOCKET) err_quit("socket()");
+
+	struct sockaddr_in server_addr;
+	memset(&server_addr, 0, sizeof(server_addr));
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(9000);
+	inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr);
+
+	ret_code = connect(sock, (struct sockaddr*)&server_addr, sizeof(server_addr));
+	if (ret_code == SOCKET_ERROR) err_quit("connect()");
+
+	char buf[512 + 1];
+	const char* test_data[] = {
+		"안녕하세요",
+		"반가워요",
+		"오늘따라 할 이야기가 많을것 같네요",
+		"저도 그렇네요",
+	};
+
+	for (int i = 0; i < 4; ++i) {
+		int len = (int)strlen(test_data[i]);
+		memset(buf, '#', sizeof(buf));
+		strncpy(buf, test_data[i], len);
+		buf[len++] = '\n';
+		ret_val = send(sock, buf, len, 0);
+		if (ret_val == SOCKET_ERROR) {
+			err_display("send()");
+			break;
+		}
+		printf("[TCP 클라이언트] %d 바이트를 보냈습니다.\n", ret_val);
+	}
+
+	closesocket(sock);
+	WSACleanup();
+	return 0;
+}
+
+int Example05_03_s()
+{
+	int ret_code, ret_val;
+
+	WSADATA wsa;
+	ret_code = WSAStartup(MAKEWORD(2, 2), &wsa);
+	if (ret_code != 0) {
+		err_display(ret_code);
+		return 0;
+	}
+
+	SOCKET listen_sock = socket(AF_INET, SOCK_STREAM, 0);
+	if (listen_sock == INVALID_SOCKET) err_quit("listen: socket()");
+
+	struct sockaddr_in server_addr;
+	memset(&server_addr, 0, sizeof(server_addr));
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(9000);
+	server_addr.sin_addr.s_addr = INADDR_ANY;
+	ret_code = bind(listen_sock, (struct sockaddr*)&server_addr, sizeof(server_addr));
+	if (ret_code == SOCKET_ERROR) err_quit("bind()");
+
+	ret_code = listen(listen_sock, SOMAXCONN);
+	if (ret_code == SOCKET_ERROR) err_quit("listen()");
+
+	SOCKET client_sock;
+	struct sockaddr_in client_addr;
+	int addrlen;
+	int len; // 고정 길이 데이터
+	char buf[512 + 1]; // 가변 길이 데이터
+
+	while (1) {
+		addrlen = sizeof(client_addr);
+		client_sock = accept(listen_sock, (struct sockaddr*)&client_addr, &addrlen);
+		if (client_sock == INVALID_SOCKET) {
+			err_display("accept()");
+			break;
+		}
+
+		char client_ip_str[INET_ADDRSTRLEN];
+		inet_ntop(AF_INET, &client_addr.sin_addr, client_ip_str, sizeof(client_ip_str));
+		printf("\n[TCP 서버] 클라이언트 접속: IP주소=%s, 포트 번호=%d\n", client_ip_str, ntohs(client_addr.sin_port));
+
+		while (1) {
+			// 고정 데이터 받기
+			ret_val = recv(client_sock, (char*)&len, sizeof(int), MSG_WAITALL);
+			if (ret_val == SOCKET_ERROR) {
+				err_display("recv()");
+				break;
+			}
+			else if (ret_val == 0)
+				break;
+			// 가변 데이터 받기
+			ret_val = recv(client_sock, buf, len, MSG_WAITALL);
+			if (ret_val == SOCKET_ERROR) {
+				err_display("recv()");
+				break;
+			}
+			else if (ret_val == 0)
+				break;
+			// 출력
+			buf[ret_val] = '\0';
+			printf("[TCP/%s:%d] %s\n", client_ip_str, ntohs(client_addr.sin_port), buf);
+		}
+
+		closesocket(client_sock);
+		printf("[TCP 서버] 클라이언트 종료: IP 주소=%s, 포트 번호=%d\n", client_ip_str, ntohs(client_addr.sin_port));
+	}
+
+	closesocket(listen_sock);
+	WSACleanup();
+	return 0;
+}
+
+int Example05_03_c()
+{
+	int ret_code, ret_val;
+
+	WSADATA wsa;
+	ret_code = WSAStartup(MAKEWORD(2, 2), &wsa);
+	if (ret_code != 0) {
+		err_display(ret_code);
+		return 0;
+	}
+
+	SOCKET sock = socket(AF_INET, SOCK_STREAM, 0);
+	if (sock == INVALID_SOCKET) err_quit("socket()");
+
+	struct sockaddr_in server_addr;
+	memset(&server_addr, 0, sizeof(server_addr));
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(9000);
+	inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr);
+
+	ret_code = connect(sock, (struct sockaddr*)&server_addr, sizeof(server_addr));
+	if (ret_code == SOCKET_ERROR) err_quit("connect()");
+
+	char buf[512 + 1];
+	const char* test_data[] = {
+		"안녕하세요",
+		"반가워요",
+		"오늘따라 할 이야기가 많을것 같네요",
+		"저도 그렇네요",
+	};
+
+	for (int i = 0; i < 4; ++i) {
+		int len = (int)strlen(test_data[i]);
+		memset(buf, '#', sizeof(buf));
+		strncpy(buf, test_data[i], len);
+		
+		// 고정 데이터 보내기
+		ret_val = send(sock, (char*)&len, sizeof(int), 0);
+		if (ret_val == SOCKET_ERROR) {
+			err_display("send()");
+			break;
+		}
+
+		ret_val = send(sock, buf, len, 0);
+		if (ret_val == SOCKET_ERROR) {
+			err_display("send()");
+			break;
+		}
+		printf("[TCP 클라이언트] %d 바이트를 보냈습니다.\n", ret_val);
+	}
+
+	closesocket(sock);
+	WSACleanup();
+	return 0;
+}
+
+int Example05_04_s()
+{
+	int ret_code, ret_val;
+
+	WSADATA wsa;
+	ret_code = WSAStartup(MAKEWORD(2, 2), &wsa);
+	if (ret_code != 0) {
+		err_display(ret_code);
+		return 0;
+	}
+
+	SOCKET listen_sock = socket(AF_INET, SOCK_STREAM, 0);
+	if (listen_sock == INVALID_SOCKET) err_quit("listen: socket()");
+
+	struct sockaddr_in server_addr;
+	memset(&server_addr, 0, sizeof(server_addr));
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(9000);
+	server_addr.sin_addr.s_addr = INADDR_ANY;
+	ret_code = bind(listen_sock, (struct sockaddr*)&server_addr, sizeof(server_addr));
+	if (ret_code == SOCKET_ERROR) err_quit("bind()");
+
+	ret_code = listen(listen_sock, SOMAXCONN);
+	if (ret_code == SOCKET_ERROR) err_quit("listen()");
+
+	SOCKET client_sock;
+	struct sockaddr_in client_addr;
+	int addrlen;
+	char buf[512 + 1];
+
+	while (1) {
+		addrlen = sizeof(client_addr);
+		client_sock = accept(listen_sock, (struct sockaddr*)&client_addr, &addrlen);
+		if (client_sock == INVALID_SOCKET) {
+			err_display("accept()");
+			break;
+		}
+
+		char client_ip_str[INET_ADDRSTRLEN];
+		inet_ntop(AF_INET, &client_addr.sin_addr, client_ip_str, sizeof(client_ip_str));
+		printf("\n[TCP 서버] 클라이언트 접속: IP주소=%s, 포트 번호=%d\n", client_ip_str, ntohs(client_addr.sin_port));
+
+		while (1) {
+			ret_val = recv(client_sock, buf, 513, MSG_WAITALL);
+			if (ret_val == SOCKET_ERROR) {
+				err_display("recv()");
+				break;
+			}
+			else if (ret_val == 0)
+				break;
+			// 출력
+			buf[ret_val] = '\0';
+			printf("[TCP/%s:%d] %s\n", client_ip_str, ntohs(client_addr.sin_port), buf);
+		}
+
+		closesocket(client_sock);
+		printf("[TCP 서버] 클라이언트 종료: IP 주소=%s, 포트 번호=%d\n", client_ip_str, ntohs(client_addr.sin_port));
+	}
+
+	closesocket(listen_sock);
+	WSACleanup();
+	return 0;
+}
+
+
+int Example05_04_c()
+{
+	int ret_code, ret_val;
+
+	WSADATA wsa;
+	ret_code = WSAStartup(MAKEWORD(2, 2), &wsa);
+	if (ret_code != 0) {
+		err_display(ret_code);
+		return 0;
+	}
+
+	struct sockaddr_in server_addr;
+	memset(&server_addr, 0, sizeof(server_addr));
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(9000);
+	inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr);
+
+
+
+	char buf[512 + 1];
+	const char* test_data[] = {
+		"안녕하세요",
+		"반가워요",
+		"오늘따라 할 이야기가 많을것 같네요",
+		"저도 그렇네요",
+	};
+
+	for (int i = 0; i < 4; ++i) {
+		SOCKET sock = socket(AF_INET, SOCK_STREAM, 0);
+		if (sock == INVALID_SOCKET) err_quit("socket()");
+
+		ret_code = connect(sock, (struct sockaddr*)&server_addr, sizeof(server_addr));
+		if (ret_code == SOCKET_ERROR) err_quit("connect()");
+
+		// 데이터 입력
+		int len = (int)strlen(test_data[i]);
+		memset(buf, '#', sizeof(buf));
+		strncpy(buf, test_data[i], len);
+
+		ret_val = send(sock, buf, len, 0);
+		if (ret_val == SOCKET_ERROR) {
+			err_display("send()");
+			break;
+		}
+		printf("[TCP 클라이언트] %d 바이트를 보냈습니다.\n", ret_val);
+
+		closesocket(sock);
+	}
+
 	WSACleanup();
 	return 0;
 }
