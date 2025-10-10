@@ -1717,7 +1717,15 @@ namespace Example06 {
 	DWORD WINAPI ProcessClient(LPVOID arg)
 	{
 		SOCKET client_sock = (SOCKET)arg;
-
+		int retval;
+		struct sockaddr_in client_addr;
+		char addr[INET_ADDRSTRLEN];
+		int addrlen;
+		char buf[512 + 1];
+		
+		addrlen = sizeof(client_addr);
+		getpeername(client_sock, (struct sockaddr*)&client_addr, &addrlen);
+	
 	}
 	
 }
