@@ -70,8 +70,8 @@ Exercise03_4, // 10
 Exercise03_5,
 Example02,
 Example03_2,
-Example03_3, //15
-Example04_01_s,
+Example03_3, 
+Example04_01_s,//15
 Example04_01_c,
 NULL};
 // 명령행 인수로 입력받아 실행하는 경우
@@ -114,6 +114,9 @@ int main(int argc, char** argv)
 			return 0;
 		}
 		
+		int c;
+		while ((c = getchar()) != '\n' && c != EOF);
+
 
 		if (input > 0 && input < 100)
 		{

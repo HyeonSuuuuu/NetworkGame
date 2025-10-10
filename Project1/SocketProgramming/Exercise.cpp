@@ -591,6 +591,7 @@ int Example04_01_s()
 	WSADATA wsa;
 	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
 		return 1;
+
 	SOCKET server_sock = socket(AF_INET, SOCK_STREAM, 0);
 	if (server_sock == INVALID_SOCKET)
 		err_quit("socket()");
@@ -602,29 +603,57 @@ int Example04_01_s()
 	addr.sin_port = htons(8000);
 	addr.sin_addr.S_un.S_addr = INADDR_ANY;
 
-	bind(server_sock, (sockaddr*)&addr, sizeof(addr));
+	if (bind(server_sock, (sockaddr*)&addr, sizeof(addr)) == SOCKET_ERROR) {
+		err_quit("bind()");
+	}
 	
-	listen(server_sock, SOMAXCONN);
+	if (listen(server_sock, SOMAXCONN) == SOCKET_ERROR) {
+		err_quit("listen()");
+	}
 	SOCKET client_sock;
 	sockaddr_in client_addr;
-	int addrlen = sizeof(client_addr);
-	printf("연결 대기중..\n");
-	client_sock = accept(server_sock, (sockaddr*)&client_addr, &addrlen);
-	
-	printf("클라이언트 [%s] 접속", inet_ntoa(client_addr.sin_addr));
-	char buf[1024];
-	while (recv(client_sock, buf, sizeof(buf), NULL) > 0) {
-		printf("%s", buf);
-		send(client_sock, buf, sizeof(buf), NULL);
+	int addrlen;
+	char buf[513];
+	while (1) {
+		addrlen = sizeof(client_addr);
+		printf("연결 대기중..\n");
+		client_sock = accept(server_sock, (sockaddr*)&client_addr, &addrlen);
+		if (client_sock == INVALID_SOCKET) {
+			err_display("accept()");
+			break;
+		}
+		char addr[INET_ADDRSTRLEN];
+		inet_ntop(AF_INET, &client_addr.sin_addr, addr, sizeof(addr));
+		printf("[TCP 서버] 클라이언트 접속: IP주소=%s, 포트 번호=%d\n", addr, ntohs(client_addr.sin_port));
+
+
+		while (1) {
+			int ret = recv(client_sock, buf, sizeof(buf), NULL);
+			if (ret == SOCKET_ERROR) {
+				err_display("recv()");
+				break;
+			}
+			else if (ret == 0)
+				break;
+			// recv로 받고 마지막에 \0을 추가한다.
+			buf[ret] = '\0';
+			printf("[TCP/%s:%d] %s\n", addr, ntohs(client_addr.sin_port), buf);
+			
+			if (send(client_sock, buf, ret, 0) == SOCKET_ERROR) {
+				err_display("send()");
+				break;
+			}
+		}
+		closesocket(client_sock);
+		printf("[TCP 서버] 클라이언트 종료: IP 주소=%s, 포트 번호=%d\n", addr, ntohs(client_addr.sin_port));
 	}
-	closesocket(client_sock);
 	closesocket(server_sock);
 	WSACleanup();
 	return 0;
 }
 
-int Example04_01_c()
-{
+int Example04_01_c() // netstat -a -n -p tcp | findstr 8000 연결을 하면 서버소켓 2개, 클라이언트 소켓 하나가 보인다. 연결을 끊으면 클라이언트 소켓은 사라지고 서버의 클라이언트 소켓은 TIME_OUT 상태로 남아있다.(대개 5분 이내)
+{ // TIMEOUT 형태로 남아있는 이유는 뒤늦게 전송된 데이터를 잘못 수신하는 상황을 막기 위함이다. TIMEOUT 형태로 남아있는한 해당 포트로 소켓 생성을 일정 시간 금지한다.
 	WSADATA wsa;
 	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
 		return 1;
@@ -636,17 +665,48 @@ int Example04_01_c()
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(8000);
-	addr.sin_addr.S_un.S_addr = 0x7F'00'00'01;
+	inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr);
 	printf("연결 시도..\n");
-	connect(client_sock, (sockaddr*)&addr, sizeof(addr));
+	if (connect(client_sock, (sockaddr*)&addr, sizeof(addr)) == SOCKET_ERROR)
+		err_quit("connect()");
 
 	printf("서버 접속 성공\n");
-	char buf[1024];
-	while (scanf("%s", buf) == 1) {
-		send(client_sock, buf, sizeof(buf), NULL);
+	char buf[513];
+	int len;
+	while (1) {
 
-		recv(client_sock, buf, sizeof(buf), NULL);
-		printf("recv: %s\n", buf);
+			
+		printf("\n[보낼 데이터] ");
+		if (fgets(buf, 513, stdin) == NULL)
+			break;
+		// 입력하고 생긴 마지막 개행문자를 \0문자로 바꾼다.
+		len = (int)strlen(buf);
+		if (buf[len - 1] == '\n')
+			buf[len - 1] = '\0';
+		if (strlen(buf) == 0)
+			break;
+
+
+		int ret = send(client_sock, buf, len, NULL);
+		if (ret == SOCKET_ERROR) {
+			err_display("send()");
+			break;
+		}
+		
+		printf("[TCP 클라이언트] %d바이트를 보냈습니다.\n", ret);
+		
+
+		ret = recv(client_sock, buf, sizeof(buf), NULL);
+		if (ret == SOCKET_ERROR) {
+			err_display("recv()");
+			break;
+		}
+		else if (ret == 0) {
+			break;
+		}
+		buf[ret] = '\0';
+		printf("[TCP 클라이언트] %d바이트를 받았습니다.\n", ret);
+		printf("[받은 데이터] %s\n", buf);
 	}
 	closesocket(client_sock);
 	WSACleanup();
