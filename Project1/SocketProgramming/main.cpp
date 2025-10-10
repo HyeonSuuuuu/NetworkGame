@@ -46,9 +46,9 @@ Exercise05_05_s, // 12
 Exercise05_05_c, // 13
 Exercise05_s,
 Exercise05_c,
-Example02,
+Example02, // 16 ~
 Example03_2,
-Example03_3, 
+Example03_3,
 Example04_01_s,
 Example04_01_c,
 Example05_01_s,
@@ -59,6 +59,9 @@ Example05_03_s,
 Example05_03_c,
 Example05_04_s,
 Example05_04_c,
+Example06_1,
+Example06_2,
+Example06_3,
 NULL};
 // 명령행 인수로 입력받아 실행하는 경우
 int (*pf_argv[100])(char**) = {
@@ -114,6 +117,7 @@ int main(int argc, char** argv)
 					pf[input - 1]();
 				}
 			}
+			printf("실행 종료");
 			_getch();
 		}
 		else if (isArgs && input == -1)
@@ -126,7 +130,7 @@ int main(int argc, char** argv)
 		}
 
 		
-			
+		
 	}
 }
 #endif

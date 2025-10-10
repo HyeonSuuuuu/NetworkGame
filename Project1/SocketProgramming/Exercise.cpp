@@ -1682,3 +1682,219 @@ int Example05_04_c()
 	WSACleanup();
 	return 0;
 }
+
+
+
+struct Point3D {
+	int x, y, z;
+};
+
+namespace Example06 {
+	DWORD WINAPI MyThread(LPVOID arg)
+	{
+		Sleep(1000);
+		Point3D* pt = (Point3D*)arg;
+		printf("Running MyThread() %d: %d, %d, %d\n", GetCurrentThreadId(), pt->x, pt->y, pt->z);
+		return 0;
+	}
+
+	DWORD WINAPI MyThread2(LPVOID arg)
+	{
+		while (1);
+		return 0;
+	}
+
+	int sum = 0;
+
+	DWORD WINAPI MyThread3(LPVOID arg)
+	{
+		int num = (int)(long long)arg;
+		for (int i = 0; i <= num; ++i)
+			sum += i;
+		return 0;
+	}
+	
+	DWORD WINAPI ProcessClient(LPVOID arg)
+	{
+		SOCKET client_sock = (SOCKET)arg;
+
+	}
+	
+}
+
+int Example06_1()
+{
+	Point3D pt1 = { 10, 20, 30 };
+	HANDLE hThread1 = CreateThread(NULL, 0, Example06::MyThread, &pt1, 0, NULL);
+	CloseHandle(hThread1);
+
+	Point3D pt2 = { 40, 50, 60 };
+	HANDLE hThread2 = CreateThread(NULL, 0, Example06::MyThread, &pt2, 0, NULL);
+	if (hThread2 == NULL)
+		return 1;
+	CloseHandle(hThread2);
+
+	printf("Running main() %d\n", GetCurrentThreadId());
+	Sleep(2000);
+	return 0;
+}
+
+int Example06_2()
+{
+	printf("우선순위: %\d ~ %d\n", THREAD_PRIORITY_IDLE, THREAD_PRIORITY_TIME_CRITICAL);
+	SYSTEM_INFO si;
+	GetSystemInfo(&si);
+
+	for (int i = 0; i < (int)si.dwNumberOfProcessors; ++i) {
+		HANDLE hThread = CreateThread(NULL, 0, Example06::MyThread2, NULL, 0, NULL);
+		SetThreadPriority(hThread, THREAD_PRIORITY_ABOVE_NORMAL);
+		CloseHandle(hThread);
+	}
+
+	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
+	Sleep(1000);
+	printf("주 스레드 실행:\n");
+	return 0;
+
+}
+
+int Example06_3()
+{
+	int num = 100;
+	HANDLE hThread = CreateThread(NULL, 0, Example06::MyThread3, (LPVOID)(long long)num, CREATE_SUSPENDED, NULL);
+
+	printf("스레드 실행 전 계산 결과: %d\n", Example06::sum);
+	ResumeThread(hThread);
+	WaitForSingleObject(hThread, INFINITE);
+	printf("스레드 실행 후 계산 결과: %d\n", Example06::sum);
+	CloseHandle(hThread);
+	return 0;
+}
+
+
+int Example06_4_s()
+{
+	WSADATA wsa;
+	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
+		return 1;
+
+	SOCKET server_sock = socket(AF_INET, SOCK_STREAM, 0);
+	if (server_sock == INVALID_SOCKET)
+		err_quit("socket()");
+
+
+	sockaddr_in addr;
+	memset(&addr, 0, sizeof(addr));
+	addr.sin_family = AF_INET;
+	addr.sin_port = htons(8000);
+	addr.sin_addr.S_un.S_addr = INADDR_ANY;
+
+	if (bind(server_sock, (sockaddr*)&addr, sizeof(addr)) == SOCKET_ERROR) {
+		err_quit("bind()");
+	}
+
+	if (listen(server_sock, SOMAXCONN) == SOCKET_ERROR) {
+		err_quit("listen()");
+	}
+	SOCKET client_sock;
+	sockaddr_in client_addr;
+	int addrlen;
+	char buf[513];
+	while (1) {
+		addrlen = sizeof(client_addr);
+		printf("연결 대기중..\n");
+		client_sock = accept(server_sock, (sockaddr*)&client_addr, &addrlen);
+		if (client_sock == INVALID_SOCKET) {
+			err_display("accept()");
+			break;
+		}
+
+		char addr[INET_ADDRSTRLEN];
+		inet_ntop(AF_INET, &client_addr.sin_addr, addr, sizeof(addr));
+		printf("[TCP 서버] 클라이언트 접속: IP주소=%s, 포트 번호=%d\n", addr, ntohs(client_addr.sin_port));
+
+		while (1) {
+			int ret = recv(client_sock, buf, sizeof(buf), NULL);
+			if (ret == SOCKET_ERROR) {
+				err_display("recv()");
+				break;
+			}
+			else if (ret == 0)
+				break;
+			// recv로 받고 마지막에 \0을 추가한다.
+			buf[ret] = '\0';
+			printf("[TCP/%s:%d] %s\n", addr, ntohs(client_addr.sin_port), buf);
+
+			if (send(client_sock, buf, ret, 0) == SOCKET_ERROR) {
+				err_display("send()");
+				break;
+			}
+		}
+		closesocket(client_sock);
+		printf("[TCP 서버] 클라이언트 종료: IP 주소=%s, 포트 번호=%d\n", addr, ntohs(client_addr.sin_port));
+	}
+	closesocket(server_sock);
+	WSACleanup();
+	return 0;
+}
+
+int Example06_4_c() // netstat -a -n -p tcp | findstr 8000 연결을 하면 서버소켓 2개, 클라이언트 소켓 하나가 보인다. 연결을 끊으면 클라이언트 소켓은 사라지고 서버의 클라이언트 소켓은 TIME_OUT 상태로 남아있다.(대개 5분 이내)
+{ // TIMEOUT 형태로 남아있는 이유는 뒤늦게 전송된 데이터를 잘못 수신하는 상황을 막기 위함이다. TIMEOUT 형태로 남아있는한 해당 포트로 소켓 생성을 일정 시간 금지한다.
+	WSADATA wsa;
+	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
+		return 1;
+	SOCKET client_sock = socket(AF_INET, SOCK_STREAM, 0);
+	if (client_sock == INVALID_SOCKET)
+		err_quit("socket()");
+
+	sockaddr_in addr;
+	memset(&addr, 0, sizeof(addr));
+	addr.sin_family = AF_INET;
+	addr.sin_port = htons(8000);
+	inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr);
+	printf("연결 시도..\n");
+	if (connect(client_sock, (sockaddr*)&addr, sizeof(addr)) == SOCKET_ERROR)
+		err_quit("connect()");
+
+	printf("서버 접속 성공\n");
+	char buf[513];
+	int len;
+	while (1) {
+
+
+		printf("\n[보낼 데이터] ");
+		if (fgets(buf, 513, stdin) == NULL)
+			break;
+		// 입력하고 생긴 마지막 개행문자를 \0문자로 바꾼다.
+		len = (int)strlen(buf);
+		if (buf[len - 1] == '\n')
+			buf[len - 1] = '\0';
+		if (strlen(buf) == 0)
+			break;
+
+
+		int ret = send(client_sock, buf, len, NULL);
+		if (ret == SOCKET_ERROR) {
+			err_display("send()");
+			break;
+		}
+
+		printf("[TCP 클라이언트] %d바이트를 보냈습니다.\n", ret);
+
+
+		ret = recv(client_sock, buf, sizeof(buf), NULL);
+		if (ret == SOCKET_ERROR) {
+			err_display("recv()");
+			break;
+		}
+		else if (ret == 0) {
+			break;
+		}
+		buf[ret] = '\0';
+		printf("[TCP 클라이언트] %d바이트를 받았습니다.\n", ret);
+		printf("[받은 데이터] %s\n", buf);
+	}
+	closesocket(client_sock);
+	WSACleanup();
+	return 0;
+}
