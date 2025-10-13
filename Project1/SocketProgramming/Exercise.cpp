@@ -1725,7 +1725,27 @@ namespace Example06 {
 		
 		addrlen = sizeof(client_addr);
 		getpeername(client_sock, (struct sockaddr*)&client_addr, &addrlen);
-	
+		inet_ntop(AF_INET, &client_addr.sin_addr, addr, sizeof(addr));
+		while (1) {
+			int ret = recv(client_sock, buf, sizeof(buf), NULL);
+			if (ret == SOCKET_ERROR) {
+				err_display("recv()");
+				break;
+			}
+			else if (ret == 0)
+				break;
+			// recv로 받고 마지막에 \0을 추가한다.
+			buf[ret] = '\0';
+			printf("[TCP/%s:%d] %s\n", addr, ntohs(client_addr.sin_port), buf);
+
+			if (send(client_sock, buf, ret, 0) == SOCKET_ERROR) {
+				err_display("send()");
+				break;
+			}
+		}
+		closesocket(client_sock);
+		printf("[TCP 서버] 클라이언트 종료: IP 주소=%s, 포트 번호=%d\n", addr, ntohs(client_addr.sin_port));
+		return 0;
 	}
 	
 }
@@ -1783,7 +1803,7 @@ int Example06_3()
 int Example06_4_s()
 {
 	WSADATA wsa;
-	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
+	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) 
 		return 1;
 
 	SOCKET server_sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -1807,7 +1827,7 @@ int Example06_4_s()
 	SOCKET client_sock;
 	sockaddr_in client_addr;
 	int addrlen;
-	char buf[513];
+	HANDLE hThread;
 	while (1) {
 		addrlen = sizeof(client_addr);
 		printf("연결 대기중..\n");
@@ -1821,25 +1841,14 @@ int Example06_4_s()
 		inet_ntop(AF_INET, &client_addr.sin_addr, addr, sizeof(addr));
 		printf("[TCP 서버] 클라이언트 접속: IP주소=%s, 포트 번호=%d\n", addr, ntohs(client_addr.sin_port));
 
-		while (1) {
-			int ret = recv(client_sock, buf, sizeof(buf), NULL);
-			if (ret == SOCKET_ERROR) {
-				err_display("recv()");
-				break;
-			}
-			else if (ret == 0)
-				break;
-			// recv로 받고 마지막에 \0을 추가한다.
-			buf[ret] = '\0';
-			printf("[TCP/%s:%d] %s\n", addr, ntohs(client_addr.sin_port), buf);
-
-			if (send(client_sock, buf, ret, 0) == SOCKET_ERROR) {
-				err_display("send()");
-				break;
-			}
+		hThread = CreateThread(NULL, 0, Example06::ProcessClient, (LPVOID)client_sock, 0, NULL);
+		if (hThread == NULL) {
+			closesocket(client_sock);
 		}
-		closesocket(client_sock);
-		printf("[TCP 서버] 클라이언트 종료: IP 주소=%s, 포트 번호=%d\n", addr, ntohs(client_addr.sin_port));
+		else {
+			CloseHandle(hThread);
+		}
+		
 	}
 	closesocket(server_sock);
 	WSACleanup();

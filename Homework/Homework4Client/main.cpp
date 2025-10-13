@@ -58,9 +58,10 @@ void err_display(int errCode)
 
 int main(int argc, char** argv)
 {
-	if (argc != 2)
+	if (argc != 3)
 		return 0;
-	const char* file_path = argv[1];
+	const char* server_ip = argv[1];
+	const char* file_path = argv[2];
 
 
 	WSADATA wsa;
@@ -74,7 +75,7 @@ int main(int argc, char** argv)
 	memset(&server_addr, 0, sizeof(server_addr));
 	server_addr.sin_family = AF_INET;
 	server_addr.sin_port = htons(9000);
-	inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr);
+	inet_pton(AF_INET, server_ip, &server_addr.sin_addr);
 
 	if (connect(sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) == SOCKET_ERROR) err_quit("connect()");
 

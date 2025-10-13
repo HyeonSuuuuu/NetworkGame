@@ -62,6 +62,8 @@ Example05_04_c,
 Example06_1,
 Example06_2,
 Example06_3,
+Example06_4_s, //32
+Example06_4_c,
 NULL};
 // 명령행 인수로 입력받아 실행하는 경우
 int (*pf_argv[100])(char**) = {
@@ -102,6 +104,8 @@ int main(int argc, char** argv)
 		{
 			return 0;
 		}
+
+		while (getchar() != '\n');
 		
 
 		if (input > 0 && input < 100)
