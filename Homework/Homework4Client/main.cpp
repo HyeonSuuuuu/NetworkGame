@@ -90,6 +90,7 @@ int main(int argc, char** argv)
 	if (send(sock, file_name, file_len, 0) == SOCKET_ERROR)
 		err_quit("file_name: send()");
 
+
 	//파일 전송
 	_fseeki64(fp, 0, SEEK_END);
 	file_size = _ftelli64(fp);
